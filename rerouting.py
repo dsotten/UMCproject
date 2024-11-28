@@ -11,40 +11,12 @@ RISK_WEIGHT = 5.0  # Adjust the weight of the risk score to balance distance vs.
 CHECK_THRESHOLD_DISTANCE = 1000  # Minimum distance (in meters) before checking for alc_loc
 CHECK_INTERVAL = 500  # Distance interval (in meters) for alc_loc checks
 check_radius = int(2*CHECK_INTERVAL/3) #2/3s of check interval, so there's some overlap between points
+min_safe_dist = 100
 
 place_types = ['bar','liquor_store','casino','night_club']
 place_types2 = ['convenience_store','drugstore','gas_station','supermarket']
 high_risk = False #checks place_types2 if True
 if (high_risk): place_types += place_types2
-
-
-# Priority Queue implementation using heapq
-class PriorityQueue:
-    def __init__(self):
-        self.elements = []
-
-    def is_empty(self):
-        return len(self.elements) == 0
-
-    def push(self, item):
-        heapq.heappush(self.elements, item)
-
-    def pop(self):
-        return heapq.heappop(self.elements)
-
-# Helper functions
-def distance_between(point1, point2):
-    origin = f"{point1[0]},{point1[1]}"
-    destination = f"{point2[0]},{point2[1]}"
-    distance_url = f"https://maps.googleapis.com/maps/api/distancematrix/json?origins={origin}&destinations={destination}&key={API_KEY}"
-    response = requests.get(distance_url)
-    data = response.json()
-    
-    if data['status'] == 'OK':
-        distance = data['rows'][0]['elements'][0]['distance']['value']  # Distance in meters
-        return distance
-    else:
-        raise Exception(f"Error in Distance Matrix API: {data['status']}")
 
 def haversine_distance(coord1, coord2):
     # Radius of the Earth in meters
@@ -77,8 +49,13 @@ def query_alc_place_api(waypoint, radius=None):
         response = requests.get(radius_url)
         data = response.json()
         
-        if data['status'] == 'OK':
-            locations += data['results']
+        if response.status_code == 200:
+            if data['status'] == 'OK':
+                # locations += data['results']
+                for result in data['results']:
+                    lat = result['geometry']['location']['lat']
+                    lon = result['geometry']['location']['lng']
+                    locations += [lat, lon]
     return locations
 
     # url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lng}&radius={radius}&type=bar|liquor_store&key={API_KEY}"
@@ -89,64 +66,49 @@ def find_safe_route(start, destination, alc_loc_radius):
     default_route_json = default_route_request.json()
     steps = default_route_json['routes'][0]['legs'][0]['steps']
     prev_step = None
-    req_waypoints = []
+    thru_waypoints = []
+    avoid_waypoints = []
+    unsafe = [False]*len(steps)
 
-    step_info_dict = {
-        'alc_loc_ct': 0,
-        'rerouting_necessary':False,
-        # 'start_pt': ,
-
-    }
-    step_info = [step_info_dict]*len(steps)
-    
     #Check for alcohol locations along current route
-    for step in steps:
-        distance = step['distance']['text']  # Step distance
-        duration = step['duration']['text']  # Step duration
-        start_pt = step['start_location']['lat'], step['start_location']['lng']
-        nearby_avoid_locs = query_alc_place_api(start_pt)
+    for i in range(len(steps)-1):
+        # distance = steps[i]['distance']['text']  # Step distance
+        duration = steps[i]['duration']['text']  # Step duration
+        start = steps[i]['start_location']['lat'], steps[i]['start_location']['lng']
+        end = steps[i]['end_location']['lat'], steps[i]['end_location']['lng']
+        distance = haversine_distance(start, end)
 
-        # if distance > CHECK_INTERVAL:
-        # if distance < CHECK_INTERVAL:
+        # if distance <= CHECK_INTERVAL:
+        #     nearby_avoid_locs = query_alc_place_api(start)
 
-    
-    # Initialize the priority queue with the start point
-    priority_queue = PriorityQueue()
-    priority_queue.push((0, start, 0))  # (total_cost, waypoint, risk_score)
-    
-    visited = set()
-    came_from = {}
-    cost_so_far = {start: 0}
-    
-    while not priority_queue.is_empty():
-        current_cost, current_point, current_risk = priority_queue.pop()
+        # else:
+        #     num_midpoints = math.ceil(distance / CHECK_INTERVAL)
+        #     midpoints = []
+
+        nearby_avoid_locs = query_alc_place_api(start)
+        shortest_dist = float('inf')
+        closest_loc = None
+
+        for location in nearby_avoid_locs:
+            distance1 = haversine_distance(start, location)
+            distance2 = haversine_distance(end, location)
+            if distance1 < min_safe_dist: 
+                shortest_dist = min(distance1,shortest_dist)
+                if shortest_dist == distance1: closest_loc = location
+                # avoid_waypoints += [start]
+            if distance2 < min_safe_dist: 
+                shortest_dist = min(distance2,shortest_dist)
+                if shortest_dist == distance2: closest_loc = location
+                # avoid_waypoints += [end]
         
-        if current_point == destination:
-            return reconstruct_path(came_from, start, destination)
-        
-        visited.add(current_point)
-        
-        for neighbor in get_neighbors(current_point):
-            if neighbor in visited:
-                continue
-            
-            # Distance cost to the destination
-            distance_cost = distance_between(neighbor, destination)
-            
-            # Check for alc_loc points only if necessary
-            if should_check_for_alc_loc(neighbor, start):
-                risk_score = calculate_risk_score(neighbor, alc_loc_radius)
-            else:
-                risk_score = current_risk
-            
-            total_cost = distance_cost + (risk_score * RISK_WEIGHT)
-            
-            if neighbor not in cost_so_far or total_cost < cost_so_far[neighbor]:
-                cost_so_far[neighbor] = total_cost
-                priority_queue.push((total_cost, neighbor, risk_score))
-                came_from[neighbor] = current_point
-    
+        if closest_loc != None:
+            avoid_waypoints += steps[i]
+            unsafe[i] = True
+
     return None  # Return None if no route is found
+
+def find_safe_waypoint(start, end):
+
 
 def should_check_for_alc_loc(waypoint, start):
     distance_from_start = distance_between(waypoint, start)
