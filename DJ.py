@@ -4,8 +4,14 @@ from queue import PriorityQueue
 import math
 import json
 
-#Current biggest issue - sometimes the waypoints come out funky and does not actually lead to my home. Additionally the number around bars might be too big and it is giving extra weight to places not necessary
-#Additionally concerned with the amount of calls to find the nearest road. (It feels like a lot.)
+#Why is it going the opposite direction? - These two might go hand and hand.
+#Weight issue?
+#Additionally concerned with the amount of calls to find the nearest road. (It feels like a lot for such little distance.) - Metrics relating to the calls. Short vs long distances.
+
+#Return json file as a dictionary. Number of calls made to the Google API. Make function input the origin etc.
+
+#Is Open? - Not as prominent right now. - Should be easy to implement.
+#Checking types and weighing them? - Might be a good feature to add.
 
 #Harversine's Formula - This formula is used to convert coordinates into meters. - Not as precise below 12 meters, but still relatively accurate.
 def coord_to_m(lat1, long1, lat2, long2):
@@ -24,7 +30,7 @@ def coord_to_m(lat1, long1, lat2, long2):
 def calc_bar_weight(bar_coords, pot_x, pot_y):
     weight = 0
     for bar in bar_coords:
-        if abs(bar[0]-pot_x) < AVERAGE_COORD/7:
+        if abs(bar[0]-pot_x) < AVERAGE_COORD/7: #Need to change the weight calculation.
             weight += .5
         elif abs(bar[1]-pot_y) < AVERAGE_COORD/7:
             weight += .5
@@ -35,6 +41,7 @@ def calc_bar_weight(bar_coords, pot_x, pot_y):
 
 #Final Variables
 API_KEY: Final = 'AIzaSyBzoCUm8NNP68qFTVdWHVlX-MfNIjXUwOE'
+#Look into
 AVERAGE_WALK: Final = 85.2 #Per Minute? Is this meters?
 CORD_TO_METERS: Final = 10.9728 #For 0.0001 degrees
 AVERAGE_COORD: Final = 85.2/CORD_TO_METERS*.0001*7 #A little sketchy can change
@@ -151,6 +158,7 @@ while abs(abs(current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ ab
             #Test Line
             print("Coords:" + lat_long)
 
+            #Fix weight issues.
             #Checks to see if the road is already in the graph
             if lat_long not in connection_graph:
                 #Adds it as a new node to the connection graph and connects it with the node that found it
@@ -182,39 +190,46 @@ while abs(abs(current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ ab
 past_current_node = connection_graph.get(past_current_node,'')
 past_current_node = connection_graph.get(past_current_node,'')
 waypoints = past_current_node
-while past_current_node != '':
+i = 0
+while past_current_node != '' and i < 50:
     waypoints += '|' + past_current_node
     past_current_node = connection_graph.get(past_current_node,'')
     past_current_node = connection_graph.get(past_current_node,'')
+    i+= 1
 
+#Open now
 #Gets the route based off of the way points.
-routing_url = f'https://maps.googleapis.com/maps/api/directions/json?origin={str(origin_x)},{str(origin_y)}&destination={str(destination_x)},{str(destination_y)}&waypoints={waypoints}&key={API_KEY}'
-           
+routing_url = f'https://maps.googleapis.com/maps/api/directions/json?origin={str(origin_x)},{str(origin_y)}&destination={str(destination_x)},{str(destination_y)}&waypoints={waypoints}&units=metric&key={API_KEY}'
+      
 route_request = requests.get(routing_url)
 route_json = route_request.json()
+#Test
+with open("sample.json", "w") as outfile:
+    json.dump(route_json, outfile)
 
+#Look at why it is not printing the final destination
 if route_json['status'] == 'OK':
     # Get the first route
     route = route_json['routes'][0]
     
-    # Print out the total distance and duration
-    leg = route['legs'][0]
-    print(f"Total Distance: {leg['distance']['text']}")
-    print(f"Total Duration: {leg['duration']['text']}")
     print("\nDirections:")
+    # Print out the total distance and duration
+    for leg in route['legs']:
+        print(f"Total Distance: {leg['distance']['text']}")
+        print(f"Total Duration: {leg['duration']['text']}")
     
-    # Print each step of the route
-    for step in leg['steps']:
-        instruction = step['html_instructions']  # Contains HTML instructions
-        distance = step['distance']['text']  # Step distance
-        duration = step['duration']['text']  # Step duration
+        # Print each step of the route
+        for step in leg['steps']:
+            instruction = step['html_instructions']  # Contains HTML instructions
+            distance = step['distance']['text']  # Step distance
+            duration = step['duration']['text']  # Step duration
 
-        # Strip HTML tags from the instruction (if needed)
-        import re
-        clean_instruction = re.sub('<.*?>', '', instruction)  # Remove HTML tags
+            # Strip HTML tags from the instruction (if needed)
+            import re
+            clean_instruction = re.sub('<.*?>', '', instruction)  # Remove HTML tags
 
-        # Print step details
-        print(f"- {clean_instruction} ({distance}, {duration})")
+            # Print step details
+            print(f"- {clean_instruction} ({distance}, {duration})")
 else:
     print(f"Error: {route_json['status']}")
     
