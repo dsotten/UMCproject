@@ -141,12 +141,12 @@ def find_best_alt_route(start, destination):
     min_locs = float('inf')
     for i in range(len(alc_locs_per_route)):
         num_locs = alc_locs_per_route[i]
-        print("Route "+str(i+1)+" passes "+str(num_locs)+" dangerous locations.")
+        # print("Route "+str(i+1)+" passes "+str(num_locs)+" dangerous locations.")
         if num_locs < min_locs: 
             best_route = i
             min_locs = num_locs
 
-    print("Route "+str(best_route+1)+" is safest:")
+    # print("Route "+str(best_route+1)+" is safest:")
     
     final_route_steps = routes[i]['legs'][0]['steps']
     
@@ -196,11 +196,3 @@ def handler(origin, destination, key, high_risk=False):
 
     alt_route_dict = find_best_alt_route(origin,destination)
     return alt_route_dict
-
-# Example usage
-# start_point = '40.748817,-73.985428'  # Example: New York City
-# destination_point = '40.785091,-73.968285'  # Example: Central Park
-# start_point = '37.2731,-76.7133'
-# destination_point = '37.27732,-76.70697'
-# safe_route = find_best_alt_route(start_point, destination_point)
-# print("Safe Route:", safe_route)

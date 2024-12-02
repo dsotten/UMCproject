@@ -8,19 +8,34 @@ import rerouting as AR
 
 API_KEY = 'AIzaSyBzoCUm8NNP68qFTVdWHVlX-MfNIjXUwOE'
 
-trips = [[('40.748817,-73.985428'),('40.785091,-73.968285')]]
+trips = [
+    [('40.748817,-73.985428'),('40.785091,-73.968285')],
+    [('37.2731,-76.7133'),('37.27732,-76.70697')]
+]
 
 def reroute_function_testing(trips=trips):
+
+    ar_dict_list = []
+    dj_dict_list = []
 
     for trip in trips:
         origin = trip[0]
         destination = trip[1]
-        ar_info = call_ar(origin,destination,high_risk=True)
-        print('Instructions:'+str(ar_info['travel_instructions']))
-        print('Distance:'+str(ar_info['travel_dist'])+' meters')
-        print('Travel Time:'+str(ar_info['travel_time']))
-        print('Num API Calls:'+str(ar_info['api_calls']))
-        print('Runtime:'+str(ar_info['runtime']))
+
+        ar_info = call_ar(origin,destination,high_risk=False)
+        ar_dict_list += [ar_info]
+
+        # dj_info = call_dj(origin,destination,high_risk=False)
+        # dj_dict_list += [dj_info]
+
+        # print('Instructions:'+str(ar_info['travel_instructions']))
+        # print('Distance:'+str(ar_info['travel_dist'])+' meters')
+        # print('Travel Time:'+str(ar_info['travel_time']))
+        # print('Num API Calls:'+str(ar_info['api_calls']))
+        # print('Runtime:'+str(ar_info['runtime']))
+
+    ar_df = pd.DataFrame(ar_dict_list)
+    ar_df.to_csv('ar_test.csv')
 
     #repeat all tests for high_risk = True
 
@@ -38,6 +53,8 @@ def call_ar(origin,destination,high_risk=False):
     travel_info = extract_travel_info(alt_route_json)
 
     ret_dict = {
+        'origin':origin,
+        'destination':destination,
         'route_json': alt_route_json,
         'travel_instructions': travel_info['instructions'],
         'travel_dist': travel_info['dist'],
