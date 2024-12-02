@@ -4,7 +4,10 @@ from queue import PriorityQueue
 import math
 import json
 
-#Harversine's Formula - Not very precise below 12 meters.
+#Current biggest issue - sometimes the waypoints come out funky and does not actually lead to my home. Additionally the number around bars might be too big and it is giving extra weight to places not necessary
+#Additionally concerned with the amount of calls to find the nearest road. (It feels like a lot.)
+
+#Harversine's Formula - This formula is used to convert coordinates into meters. - Not as precise below 12 meters, but still relatively accurate.
 def coord_to_m(lat1, long1, lat2, long2):
     RADIUS_OF_EARTH: Final = 6371000 #in M
     lat1 = math.radians(lat1)
@@ -17,7 +20,7 @@ def coord_to_m(lat1, long1, lat2, long2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
     return c * RADIUS_OF_EARTH #1000 to conver to meters
 
-#Looks through the bar list to see if there is a bar close to the point being looked at
+#Looks through the bar list to see if there is a bar close to the point being looked at and adds a weight of .5. (The .5 is subject to change.)
 def calc_bar_weight(bar_coords, pot_x, pot_y):
     weight = 0
     for bar in bar_coords:
@@ -32,22 +35,21 @@ def calc_bar_weight(bar_coords, pot_x, pot_y):
 
 #Final Variables
 API_KEY: Final = 'AIzaSyBzoCUm8NNP68qFTVdWHVlX-MfNIjXUwOE'
-AVERAGE_WALK: Final = 85.2 #Per Minute 
-WALKING_RADIUS: Final = 300
+AVERAGE_WALK: Final = 85.2 #Per Minute? Is this meters?
 CORD_TO_METERS: Final = 10.9728 #For 0.0001 degrees
-AVERAGE_COORD: Final = 85.2/10.9728*.0001*7
+AVERAGE_COORD: Final = 85.2/CORD_TO_METERS*.0001*7 #A little sketchy can change
 #Weights
 BAR_WEIGHT: Final = .5
 
 
-#Current Example
+#Current Example - Zable Stadium to Jay's Apartment
 origin_x = 37.2731
 origin_y = -76.7133 #Zable Stadium
 destination_x = 37.27732
 destination_y = -76.70697 #Jay's Apartment
 estimate_min_add = 10
 
-#Don't know if this is needed anymore.
+#Defines what is the bigger x and y.
 if(destination_x > origin_x):
     bigger_x = destination_x
     smaller_x = origin_x
@@ -62,13 +64,13 @@ else:
     bigger_y= origin_y
     smaller_y = destination_y
 
-#May have to change radius later. Possibly implement it in the if else statements above.
+#Formulates the url that looks for bars in the areas.
 place_type = 'bar'
 coord = str(origin_x)+','+str(origin_y)
 radius = str(coord_to_m(origin_x,origin_y,destination_x,destination_y))
 radius_url = f'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={coord}&radius={radius}&type={place_type}&key={API_KEY}'
 
-#Gets bars in the area surrounding the origin. The radius is how far away the destination is.
+#Makes the radius request. Gets bars in the area surrounding the origin and puts them into the bar_coords list. The radius is how far away the url looks away from the destination is.
 bar_coords = []
 radius_request = requests.get(radius_url)
 if radius_request.status_code == 200:
@@ -88,12 +90,13 @@ else:
     print("Request failed: ", radius_request.status_code)
 
 
+#Current node
 current_node_str = str(origin_x) + ',' + str(origin_y)
 current_node = [origin_x, origin_y]
 
 #Keeps track of connections
 connection_graph = {current_node_str: ''} #?
-#Weight issue
+#Keep tracks of weight
 weight_graph = {current_node_str: 0}
 #Puts weights into here
 pq = PriorityQueue()
@@ -107,8 +110,7 @@ past_current_node = ''
 i = 5
 while abs(abs(current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y)) > .0001:
     print(abs(abs(current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y)) > .0001)
-    #Gets the locations and the weights of nodes it wants to look at.
-    #Current issue might weight roads multiple times
+    #Gets the locations and the weights of nodes it wants to look at surrounding the current node.
     weights = []
     check_coords += str(current_node[0]+x_variant) + ',' + str(current_node[1]+y_variant)
     weights.append(calc_bar_weight(bar_coords, current_node[0]+x_variant, current_node[1]+y_variant))
@@ -126,9 +128,9 @@ while abs(abs(current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ ab
     weights.append(calc_bar_weight(bar_coords, current_node[0], current_node[1]+y_variant))
     check_coords += '|'+ str(current_node[0]) + ',' + str(current_node[1]-y_variant)
     weights.append(calc_bar_weight(bar_coords, current_node[0], current_node[1]-y_variant))
+
+    #Gets the nearest roads from the points defined above.
     closest_road_url = f'https://roads.googleapis.com/v1/nearestRoads?points={check_coords}&key={API_KEY}'
-    
-    #Gets the nearest roads from the poaint
     try:
         road_request = requests.get(closest_road_url)
         road_request.raise_for_status()  # Raise an error for HTTP codes 4xx/5xx
@@ -136,6 +138,7 @@ while abs(abs(current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ ab
     except requests.exceptions.RequestException as e:
         print(f"Error: {e}")
 
+    #Potential issue - For 2 way roads, they are listed twice. Need to formulate some way to not double them, but also not skipping over roads that have the same nearest road.
     i = 0
     #Goes through the data
     if "snappedPoints" in road_request_data:
@@ -145,6 +148,7 @@ while abs(abs(current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ ab
             latitude = snapped_point["location"]["latitude"]
             longitude = snapped_point["location"]["longitude"]
             lat_long = str(latitude)+ ','+ str(longitude)
+            #Test Line
             print("Coords:" + lat_long)
 
             #Checks to see if the road is already in the graph
@@ -153,37 +157,37 @@ while abs(abs(current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ ab
                 connection_graph.update({lat_long: current_node_str})
                 #Puts it in the priority queue with its associated weight
                 weight = abs(current_node[0] - latitude) + abs(current_node[1] - longitude) + abs(destination_x - latitude) + abs(destination_y - longitude) #Calculates the distance from the road
+                #Test Line
                 print("Weight:" + str(weight))
                 pq.put((weight + weights[i], lat_long))
-            
-            #Might be nice to update the weights here else:
-                # weight = abs(current_node[0] - latitude + current_node[1] - longitude) #Calculates the distance from the road
-                # pq.update{lat_long: weight_graph.get(lat_long) + weights[i]}
         
             if lat_long != past:
                 i += 1
             past = lat_long
+        
+        #Used after the while loop ends.
         past_current_node = current_node_str
+        #Gets the next current_node.
         new_current_node = pq.get()
         current_node_str = new_current_node[1]
+        #Test line
         print(current_node_str)
+        #Divides the string of the next node into 2.
         ll = current_node_str.split(',')
         current_node = [float(ll[0]),float(ll[1])]
         check_coords = ''
-        if i == 5:
-            break
-        else:
-            i += 1
 
-#Fix to ensure the number of way points does not exceed
+
+#Fix to ensure the number of way points does not exceed - Maybe base the division on the 50 waypoints.
+past_current_node = connection_graph.get(past_current_node,'')
 past_current_node = connection_graph.get(past_current_node,'')
 waypoints = past_current_node
-past_current_node = connection_graph.get(past_current_node,'')
 while past_current_node != '':
     waypoints += '|' + past_current_node
     past_current_node = connection_graph.get(past_current_node,'')
     past_current_node = connection_graph.get(past_current_node,'')
 
+#Gets the route based off of the way points.
 routing_url = f'https://maps.googleapis.com/maps/api/directions/json?origin={str(origin_x)},{str(origin_y)}&destination={str(destination_x)},{str(destination_y)}&waypoints={waypoints}&key={API_KEY}'
            
 route_request = requests.get(routing_url)
