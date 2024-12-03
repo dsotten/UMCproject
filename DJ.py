@@ -108,76 +108,77 @@ def get_route(origin_x, origin_y, dest_x, dest_y, avoid_place):
 
     #I think there is an issue here
     i = 0
-    while abs((abs(current_node[0])+ abs(current_node[1])) - (abs(destination_x)+ abs(destination_y))) > grid_size and i <= 50:
-        #Test line
-        #print(abs(abs((current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y))))
-        #Gets the locations and the weights of nodes it wants to look at surrounding the current node.
-        check_coords += str(current_node[0]+x_variant) + ',' + str(current_node[1]+y_variant)
-        check_coords += '|'+str(current_node[0]-x_variant)+','+str(current_node[1]+y_variant)
-        check_coords += '|'+str(current_node[0]+x_variant)+','+str(current_node[1]-y_variant)
-        check_coords += '|'+str(current_node[0]-x_variant)+','+str(current_node[1]-y_variant)
-        check_coords += '|'+ str(current_node[0]+x_variant) + ',' + str(current_node[1])
-        check_coords += '|'+ str(current_node[0]-x_variant) + ',' + str(current_node[1])
-        check_coords += '|'+ str(current_node[0]) + ',' + str(current_node[1]+y_variant)
-        check_coords += '|'+ str(current_node[0]) + ',' + str(current_node[1]-y_variant)
+    if len(avoid_place_lst) > 0:
+        while abs((abs(current_node[0])+ abs(current_node[1])) - (abs(destination_x)+ abs(destination_y))) > grid_size and i <= 50:
+            #Test line
+            #print(abs(abs((current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y))))
+            #Gets the locations and the weights of nodes it wants to look at surrounding the current node.
+            check_coords += str(current_node[0]+x_variant) + ',' + str(current_node[1]+y_variant)
+            check_coords += '|'+str(current_node[0]-x_variant)+','+str(current_node[1]+y_variant)
+            check_coords += '|'+str(current_node[0]+x_variant)+','+str(current_node[1]-y_variant)
+            check_coords += '|'+str(current_node[0]-x_variant)+','+str(current_node[1]-y_variant)
+            check_coords += '|'+ str(current_node[0]+x_variant) + ',' + str(current_node[1])
+            check_coords += '|'+ str(current_node[0]-x_variant) + ',' + str(current_node[1])
+            check_coords += '|'+ str(current_node[0]) + ',' + str(current_node[1]+y_variant)
+            check_coords += '|'+ str(current_node[0]) + ',' + str(current_node[1]-y_variant)
 
-        #Gets the nearest roads from the points defined above.
-        closest_road_url = f'https://roads.googleapis.com/v1/nearestRoads?points={check_coords}&key={API_KEY}'
-        try:
-            road_request = requests.get(closest_road_url)
-            road_request.raise_for_status()  # Raise an error for HTTP codes 4xx/5xx
-            road_request_data = road_request.json()
-            with open("sample.json", "w") as outfile:
-                json.dump(road_request_data, outfile)
-        except requests.exceptions.RequestException as e:
-            print(f"Error: {e}")
+            #Gets the nearest roads from the points defined above.
+            closest_road_url = f'https://roads.googleapis.com/v1/nearestRoads?points={check_coords}&key={API_KEY}'
+            try:
+                road_request = requests.get(closest_road_url)
+                road_request.raise_for_status()  # Raise an error for HTTP codes 4xx/5xx
+                road_request_data = road_request.json()
+                with open("sample.json", "w") as outfile:
+                    json.dump(road_request_data, outfile)
+            except requests.exceptions.RequestException as e:
+                print(f"Error: {e}")
 
-        #Potential issue - For 2 way roads, they are listed twice. Need to formulate some way to not double them, but also not skipping over roads that have the same nearest road.
-        #Goes through the data
-        if "snappedPoints" in road_request_data:
+            #Potential issue - For 2 way roads, they are listed twice. Need to formulate some way to not double them, but also not skipping over roads that have the same nearest road.
+            #Goes through the data
+            if "snappedPoints" in road_request_data:
 
-            for snapped_point in road_request_data["snappedPoints"]:
-                #Gets string version of the closest road
-                latitude = snapped_point["location"]["latitude"]
-                longitude = snapped_point["location"]["longitude"]
-                lat_long = str(latitude)+ ','+ str(longitude)
-                #Test Line
-                # print("Coords:" + lat_long)
-                
-                #Checks to see if the road is already in the graph
-                if lat_long not in connection_graph:
-                    #Adds it as a new node to the connection graph and connects it with the node that found it. Should not add to the pq again.
-                    connection_graph.update({lat_long: current_node_str})
-                    weight = abs(destination_x - latitude) + abs(destination_y - longitude) #Calculates the distance from the road
-                    place_weight = 0
-                    for place in avoid_place_lst:
-                        place_weight += calc_bar_weight(place, latitude, longitude, grid_size)
-                    weight_graph.update({lat_long: (weight + place_weight + (weight_graph.get(current_node_str)))})
+                for snapped_point in road_request_data["snappedPoints"]:
+                    #Gets string version of the closest road
+                    latitude = snapped_point["location"]["latitude"]
+                    longitude = snapped_point["location"]["longitude"]
+                    lat_long = str(latitude)+ ','+ str(longitude)
                     #Test Line
-                    # print("Weight:" + str(weight))
-                    #Puts it in the priority queue with its associated weight
-                    pq.put((weight_graph.get(lat_long), lat_long))
-            
-        #Gets the next current_node.
-        new_current_node = pq.get()
-        # print(new_current_node)
-        current_node_str = new_current_node[1]
-        ll = current_node_str.split(',')
-        current_node = [float(ll[0]),float(ll[1])]
-        # print("ans:" + str(abs(abs((current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y)))))
-        print("Current_Node:", current_node_str)
-        #Divides the string of the next node into 2.
-        check_coords = ''
-        i += 1
+                    # print("Coords:" + lat_long)
+                    
+                    #Checks to see if the road is already in the graph
+                    if lat_long not in connection_graph:
+                        #Adds it as a new node to the connection graph and connects it with the node that found it. Should not add to the pq again.
+                        connection_graph.update({lat_long: current_node_str})
+                        weight = abs(destination_x - latitude) + abs(destination_y - longitude) #Calculates the distance from the road
+                        place_weight = 0
+                        for place in avoid_place_lst:
+                            place_weight += calc_bar_weight(place, latitude, longitude, grid_size)
+                        weight_graph.update({lat_long: (weight + place_weight + (weight_graph.get(current_node_str)))})
+                        #Test Line
+                        # print("Weight:" + str(weight))
+                        #Puts it in the priority queue with its associated weight
+                        pq.put((weight_graph.get(lat_long), lat_long))
+                
+            #Gets the next current_node.
+            new_current_node = pq.get()
+            # print(new_current_node)
+            current_node_str = new_current_node[1]
+            ll = current_node_str.split(',')
+            current_node = [float(ll[0]),float(ll[1])]
+            # print("ans:" + str(abs(abs((current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y)))))
+            print("Current_Node:", current_node_str)
+            #Divides the string of the next node into 2.
+            check_coords = ''
+            i += 1
 
-    past_current_node = min(weight_graph)
-    waypoints = past_current_node
-    i = 0
-    while past_current_node != '' and i < 50:
-        waypoints += '|' + past_current_node
-        past_current_node = connection_graph.get(past_current_node,'')
-        past_current_node = connection_graph.get(past_current_node,'')
-        i+= 1
+        past_current_node = min(weight_graph)
+        waypoints = past_current_node
+        i = 0
+        while past_current_node != '' and i < 50:
+            waypoints += '|' + past_current_node
+            past_current_node = connection_graph.get(past_current_node,'')
+            past_current_node = connection_graph.get(past_current_node,'')
+            i+= 1
 
     #Open now
     #Gets the route based off of the way points.
