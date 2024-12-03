@@ -71,6 +71,7 @@ def call_ar(origin,destination,high_risk=False):
         'travel_dist': travel_info['dist'],
         'travel_time': travel_info['time'],
         'danger_locs':alt_route['danger_locs'],
+        'max_danger_locs':alt_route['max_danger_locs'],
         'api_calls':alt_route['num_api_calls'],
         'runtime': time_elapsed,
     }
@@ -82,7 +83,7 @@ def call_dj(origin,destination,high_risk=False):
     destination_x, destination_y = destination
 
     start_time = datetime.datetime.now()
-    dj_route = DJ.get_route(origin_x, origin_y, destination_x, destination_y, danger_locations)
+    dj_route = DJ.get_route(origin_x, origin_y, destination_x, destination_y, danger_locations, opennow=False)
     end_time = datetime.datetime.now()
     time_elapsed = end_time - start_time
     time_elapsed = time_elapsed.total_seconds()
@@ -94,7 +95,7 @@ def call_dj(origin,destination,high_risk=False):
     ret_dict = {
         'origin':origin,
         'destination':destination,
-        'route_json': dj_route,
+        'route_json': dj_route_json,
         'travel_instructions': travel_info['instructions'],
         'travel_dist': travel_info['dist'],
         'travel_time': travel_info['time'],
@@ -152,7 +153,7 @@ def extract_travel_info(file):
         'time':travel_time
     }
 
-def generate_trips(num_of_trips, radius_km, min_distance_km=3, max_distance_km=8):
+def generate_trips(num_of_trips, radius_km, min_distance_km=1, max_distance_km=5):
     
     def random_point_in_radius(center_lat, center_lon, radius_km):
         """
@@ -198,11 +199,11 @@ def generate_trips(num_of_trips, radius_km, min_distance_km=3, max_distance_km=8
         # (35.6764, 139.6500), #Tokyo
         # (28.7041, 77.1025), #Delhi
         # (31.2304, 121.4737), #Shanghai
-        # (23.5558, 46.6396), #Sao Paulo
-        # (19.4326, 99.1332), #Mexico City
+        # (-23.5558, -46.6396), #Sao Paulo
+        # (19.4326, -99.1332), #Mexico City
         # (30.0444, 31.2357), #Cairo
         (40.7128, -74.0060), #New York City
-        # (34.6037, 58.3816), #Buenos Aires
+        # (-34.6037, -58.3816), #Buenos Aires
         # (41.0082, 28.9784), #Istanbul
         # (14.5995, 120.9842) #Manila
     ]
@@ -228,6 +229,6 @@ def generate_trips(num_of_trips, radius_km, min_distance_km=3, max_distance_km=8
 
 if __name__ == "__main__":
     print('Start')
-    new_trips = generate_trips(5, 50)
+    new_trips = generate_trips(10, 50)
     print(str(new_trips))
     reroute_function_testing(new_trips)

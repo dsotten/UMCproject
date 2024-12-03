@@ -34,7 +34,7 @@ def calc_bar_weight(bar_coords, pot_x, pot_y, grid_size):
 
 #For now we are only going to use bars. - Just makes things easier
 #Might have issues with bigger distances.
-def get_route(origin_x, origin_y, dest_x, dest_y, avoid_place):
+def get_route(origin_x, origin_y, dest_x, dest_y, avoid_place,opennow=True):
     API_KEY: Final = 'AIzaSyBzoCUm8NNP68qFTVdWHVlX-MfNIjXUwOE'
 
     origin_x = origin_x
@@ -68,7 +68,11 @@ def get_route(origin_x, origin_y, dest_x, dest_y, avoid_place):
                 grid_size = bigger_x/20
             else:
                 grid_size = bigger_y/20
-        radius_url = f'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={coord}&radius={radius}&type={place_type}&opennow&key={API_KEY}'
+        
+        if opennow:
+            radius_url = f'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={coord}&radius={radius}&type={place_type}&opennow&key={API_KEY}'
+        else:
+            radius_url = f'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={coord}&radius={radius}&type={place_type}&key={API_KEY}'
 
         #Makes the radius request. Gets bars in the area surrounding the origin and puts them into the bar_coords list. The radius is how far away the url looks away from the destination is.
         coords = []
@@ -127,6 +131,7 @@ def get_route(origin_x, origin_y, dest_x, dest_y, avoid_place):
 
             #Gets the nearest roads from the points defined above.
             closest_road_url = f'https://roads.googleapis.com/v1/nearestRoads?points={check_coords}&key={API_KEY}'
+            i += 1
             try:
                 road_request = requests.get(closest_road_url)
                 road_request.raise_for_status()  # Raise an error for HTTP codes 4xx/5xx
@@ -172,16 +177,16 @@ def get_route(origin_x, origin_y, dest_x, dest_y, avoid_place):
             # print("Current_Node:", current_node_str)
             #Divides the string of the next node into 2.
             check_coords = ''
-            i += 1
+            # i += 1
 
         past_current_node = min(weight_graph)
         waypoints = past_current_node
-        i = 0
-        while past_current_node != '' and i < 50:
+        j = 0
+        while past_current_node != '' and j < 50:
             waypoints += '|' + past_current_node
             past_current_node = connection_graph.get(past_current_node,'')
             past_current_node = connection_graph.get(past_current_node,'')
-            i+= 1
+            j+= 1
 
     print('While loop finished')
 
@@ -191,6 +196,7 @@ def get_route(origin_x, origin_y, dest_x, dest_y, avoid_place):
         routing_url = f'https://maps.googleapis.com/maps/api/directions/json?origin={str(origin_x)},{str(origin_y)}&destination={str(destination_x)},{str(destination_y)}&waypoints={waypoints}&units=metric&key={API_KEY}'
     else:
         routing_url = f'https://maps.googleapis.com/maps/api/directions/json?origin={str(origin_x)},{str(origin_y)}&destination={str(destination_x)},{str(destination_y)}&units=metric&key={API_KEY}'
+    i += 1
 
     route_request = requests.get(routing_url)
     route_json = route_request.json()

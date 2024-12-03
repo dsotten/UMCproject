@@ -76,13 +76,16 @@ def is_point_near_route_segment(point, start_point, end_point, max_distance=min_
     # Check if distance is within max_distance
     return distance <= max_distance
 
-def query_alc_place_api(waypoint, radius, place_types=danger_locations):
+def query_alc_place_api(waypoint, radius, place_types=danger_locations, opennow=True):
     # Placeholder function for querying the Google Places API
     lat, lng = waypoint
     locations = []
 
     for avoid_loc in place_types:
-        radius_url = f'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lng}&radius={radius}&type={avoid_loc}&opennow&key={API_KEY}'
+        if opennow:
+            radius_url = f'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lng}&radius={radius}&type={avoid_loc}&opennow&key={API_KEY}'
+        else:
+            radius_url = f'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lng}&radius={radius}&type={avoid_loc}&key={API_KEY}'
         response = requests.get(radius_url)
         data = response.json()
         
@@ -95,7 +98,7 @@ def query_alc_place_api(waypoint, radius, place_types=danger_locations):
 
     # url = f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={lat},{lng}&radius={radius}&type=bar|liquor_store&key={API_KEY}"
 
-def find_avoid_locs(start, end, distance=None):
+def find_avoid_locs(start, end, distance=None, opennow=False):
     lat_s, lon_s = start
     lat_e, lon_e = end
     midpoint = (lat_s+lat_e)/2, (lon_s+lon_e)/2
@@ -103,7 +106,7 @@ def find_avoid_locs(start, end, distance=None):
     if distance is None:
         distance = haversine_distance(start, end)
     radius = max(min_safe_dist*2,distance/2)
-    nearby_avoid_locs = query_alc_place_api(midpoint,radius=radius)
+    nearby_avoid_locs = query_alc_place_api(midpoint,radius=radius,opennow=opennow)
 
     return nearby_avoid_locs
 
@@ -143,6 +146,7 @@ def find_best_alt_route(start, destination):
 
         best_route = 0
         min_locs = 0
+        max_locs = -1
         if alc_locs_per_route is not []:
             min_locs = float('inf')
             for i in range(len(alc_locs_per_route)):
@@ -151,12 +155,15 @@ def find_best_alt_route(start, destination):
                 if num_locs < min_locs: 
                     best_route = i
                     min_locs = num_locs
+                if num_locs > max_locs:
+                    max_locs = num_locs
 
         print("Route "+str(best_route+1)+" is safest:")
 
         ret_dict = {
             'route_json': routes[best_route],
             'danger_locs': min_locs,
+            'max_danger_locs': max_locs,
             'num_api_calls': api_ct
         }
         return ret_dict
