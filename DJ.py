@@ -168,6 +168,9 @@ def get_route(origin_x, origin_y, dest_x, dest_y, avoid_place,opennow=True):
                         pq.put((weight_graph.get(lat_long), lat_long))
                 
             #Gets the next current_node.
+            if pq.empty():
+                print("Priority queue is empty; terminating.")
+                break
             new_current_node = pq.get()
             # print(new_current_node)
             current_node_str = new_current_node[1]
