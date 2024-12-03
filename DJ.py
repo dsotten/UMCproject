@@ -3,10 +3,9 @@ from typing import Final
 from queue import PriorityQueue
 import math
 import json
+import heapq
 
-#Why is it going the opposite direction? - These two might go hand and hand.
-#Weight issue?
-#Additionally concerned with the amount of calls to find the nearest road. (It feels like a lot for such little distance.) - Metrics relating to the calls. Short vs long distances.
+#Why is it giving extra directions?
 
 #Return json file as a dictionary. Number of calls made to the Google API. Make function input the origin etc.
 
@@ -27,13 +26,16 @@ def coord_to_m(lat1, long1, lat2, long2):
     return c * RADIUS_OF_EARTH #1000 to conver to meters
 
 #Looks through the bar list to see if there is a bar close to the point being looked at and adds a weight of .5. (The .5 is subject to change.)
-def calc_bar_weight(bar_coords, pot_x, pot_y):
+def calc_bar_weight(bar_coords, pot_x, pot_y, grid_size):
+    BAR_WEIGHT: Final = 20
     weight = 0
     for bar in bar_coords:
-        if abs(bar[0]-pot_x) < AVERAGE_COORD/7: #Need to change the weight calculation.
-            weight += .5
-        elif abs(bar[1]-pot_y) < AVERAGE_COORD/7:
-            weight += .5
+        distance_x = abs(bar[0]-pot_x)
+        distance_y = abs(bar[1]-pot_y)
+        if distance_x < grid_size: #Need to change the weight calculation.
+            weight += distance_x * BAR_WEIGHT
+        elif distance_y < grid_size:
+            weight += BAR_WEIGHT
     print('Weight Added:' + str(weight))
     return weight
 
@@ -41,17 +43,19 @@ def calc_bar_weight(bar_coords, pot_x, pot_y):
 
 #Final Variables
 API_KEY: Final = 'AIzaSyBzoCUm8NNP68qFTVdWHVlX-MfNIjXUwOE'
-#Look into
-AVERAGE_WALK: Final = 85.2 #Per Minute? Is this meters?
-CORD_TO_METERS: Final = 10.9728 #For 0.0001 degrees
-AVERAGE_COORD: Final = 85.2/CORD_TO_METERS*.0001*7 #A little sketchy can change
+# #Look into
+# AVERAGE_WALK: Final = 85.2 #Per Minute? Is this meters?
+# CORD_TO_METERS: Final = 10.9728 #For 0.0001 degrees
+
+#How to evaluate the average coord?
 #Weights
-BAR_WEIGHT: Final = .5
 
 
+#DownTown Art Museum - 37.2686°N 76.7048°W
+#Zable Stadium - 37.2730556 ″N -76.7133333″W
 #Current Example - Zable Stadium to Jay's Apartment
-origin_x = 37.2731
-origin_y = -76.7133 #Zable Stadium
+origin_x = 37.2730556
+origin_y = -76.713333 #Zable Stadium
 destination_x = 37.27732
 destination_y = -76.70697 #Jay's Apartment
 estimate_min_add = 10
@@ -74,7 +78,17 @@ else:
 #Formulates the url that looks for bars in the areas.
 place_type = 'bar'
 coord = str(origin_x)+','+str(origin_y)
-radius = str(coord_to_m(origin_x,origin_y,destination_x,destination_y))
+radius_int = coord_to_m(origin_x,origin_y,destination_x,destination_y)
+radius = str(radius_int)
+#Set to 25 miles or 40233.6 meters
+print("Radius:", radius)
+if radius_int < 40233.6:
+    grid_size = .0001 #May need to be changed
+else:
+    if(bigger_x>bigger_y):
+        grid_size = bigger_x/20
+    else:
+        grid_size = bigger_y/20
 radius_url = f'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={coord}&radius={radius}&type={place_type}&key={API_KEY}'
 
 #Makes the radius request. Gets bars in the area surrounding the origin and puts them into the bar_coords list. The radius is how far away the url looks away from the destination is.
@@ -106,35 +120,25 @@ connection_graph = {current_node_str: ''} #?
 #Keep tracks of weight
 weight_graph = {current_node_str: 0}
 #Puts weights into here
-pq = PriorityQueue()
+pq = []
 
 check_coords = ''
-x_variant = AVERAGE_COORD
-y_variant = AVERAGE_COORD
 
-past_current_node = ''
+x_variant = grid_size
+y_variant = grid_size
 
-i = 5
-while abs(abs(current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y)) > .0001:
-    print(abs(abs(current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y)) > .0001)
+#I think there is an issue here
+while abs(abs((current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y))) > grid_size:
+    print(abs(abs((current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y))))
     #Gets the locations and the weights of nodes it wants to look at surrounding the current node.
-    weights = []
     check_coords += str(current_node[0]+x_variant) + ',' + str(current_node[1]+y_variant)
-    weights.append(calc_bar_weight(bar_coords, current_node[0]+x_variant, current_node[1]+y_variant))
     check_coords += '|'+str(current_node[0]-x_variant)+','+str(current_node[1]+y_variant)
-    weights.append(calc_bar_weight(bar_coords, current_node[0]-x_variant, current_node[1]+y_variant))
     check_coords += '|'+str(current_node[0]+x_variant)+','+str(current_node[1]-y_variant)
-    weights.append(calc_bar_weight(bar_coords, current_node[0]+x_variant, current_node[1]-y_variant))
     check_coords += '|'+str(current_node[0]-x_variant)+','+str(current_node[1]-y_variant)
-    weights.append(calc_bar_weight(bar_coords, current_node[0]-x_variant, current_node[1]-y_variant))
     check_coords += '|'+ str(current_node[0]+x_variant) + ',' + str(current_node[1])
-    weights.append(calc_bar_weight(bar_coords, current_node[0]+x_variant, current_node[1]))
     check_coords += '|'+ str(current_node[0]-x_variant) + ',' + str(current_node[1])
-    weights.append(calc_bar_weight(bar_coords, current_node[0]-x_variant, current_node[1]))
     check_coords += '|'+ str(current_node[0]) + ',' + str(current_node[1]+y_variant)
-    weights.append(calc_bar_weight(bar_coords, current_node[0], current_node[1]+y_variant))
     check_coords += '|'+ str(current_node[0]) + ',' + str(current_node[1]-y_variant)
-    weights.append(calc_bar_weight(bar_coords, current_node[0], current_node[1]-y_variant))
 
     #Gets the nearest roads from the points defined above.
     closest_road_url = f'https://roads.googleapis.com/v1/nearestRoads?points={check_coords}&key={API_KEY}'
@@ -142,6 +146,8 @@ while abs(abs(current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ ab
         road_request = requests.get(closest_road_url)
         road_request.raise_for_status()  # Raise an error for HTTP codes 4xx/5xx
         road_request_data = road_request.json()
+        with open("sample.json", "w") as outfile:
+            json.dump(road_request_data, outfile)
     except requests.exceptions.RequestException as e:
         print(f"Error: {e}")
 
@@ -149,7 +155,7 @@ while abs(abs(current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ ab
     i = 0
     #Goes through the data
     if "snappedPoints" in road_request_data:
-        past = ''
+
         for snapped_point in road_request_data["snappedPoints"]:
             #Gets string version of the closest road
             latitude = snapped_point["location"]["latitude"]
@@ -157,37 +163,39 @@ while abs(abs(current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ ab
             lat_long = str(latitude)+ ','+ str(longitude)
             #Test Line
             print("Coords:" + lat_long)
-
-            #Fix weight issues.
-            #Checks to see if the road is already in the graph
+            
+            #Checks to see if the road is already in the graph - Lots of issues with weights
             if lat_long not in connection_graph:
                 #Adds it as a new node to the connection graph and connects it with the node that found it
                 connection_graph.update({lat_long: current_node_str})
                 #Puts it in the priority queue with its associated weight
                 weight = abs(current_node[0] - latitude) + abs(current_node[1] - longitude) + abs(destination_x - latitude) + abs(destination_y - longitude) #Calculates the distance from the road
                 #Test Line
+                weight_graph.update({lat_long: (weight + calc_bar_weight(bar_coords, latitude, longitude, grid_size) + (weight_graph.get(current_node_str)))})
                 print("Weight:" + str(weight))
-                pq.put((weight + weights[i], lat_long))
+                heapq.heappush(pq, (weight_graph.get(lat_long), lat_long))
+                i+=1
         
-            if lat_long != past:
-                i += 1
-            past = lat_long
-        
-        #Used after the while loop ends.
-        past_current_node = current_node_str
         #Gets the next current_node.
-        new_current_node = pq.get()
+        new_current_node = heapq.heappop(pq)
         current_node_str = new_current_node[1]
-        #Test line
-        print(current_node_str)
-        #Divides the string of the next node into 2.
         ll = current_node_str.split(',')
         current_node = [float(ll[0]),float(ll[1])]
+        print("ans:" + str(abs(abs((current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y)))))
+        while abs(abs((current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y))) > grid_size*20:
+            print("used")
+            new_current_node = heapq.heappop(pq)
+            current_node_str = new_current_node[1]
+            ll = current_node_str.split(',')
+            current_node = [float(ll[0]),float(ll[1])]
+        #Test line
+        print("Current_Node:", current_node_str)
+        #Divides the string of the next node into 2.
         check_coords = ''
 
 
 #Fix to ensure the number of way points does not exceed - Maybe base the division on the 50 waypoints.
-past_current_node = connection_graph.get(past_current_node,'')
+past_current_node = current_node_str
 past_current_node = connection_graph.get(past_current_node,'')
 waypoints = past_current_node
 i = 0
@@ -203,9 +211,9 @@ routing_url = f'https://maps.googleapis.com/maps/api/directions/json?origin={str
       
 route_request = requests.get(routing_url)
 route_json = route_request.json()
-#Test
-with open("sample.json", "w") as outfile:
-    json.dump(route_json, outfile)
+# #Test
+# with open("sample.json", "w") as outfile:
+#     json.dump(route_json, outfile)
 
 #Look at why it is not printing the final destination
 if route_json['status'] == 'OK':
@@ -230,6 +238,7 @@ if route_json['status'] == 'OK':
 
             # Print step details
             print(f"- {clean_instruction} ({distance}, {duration})")
+        print("New leg")
 else:
     print(f"Error: {route_json['status']}")
     
