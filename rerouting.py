@@ -119,48 +119,54 @@ def find_best_alt_route(start, destination):
     possible_routes = f'https://maps.googleapis.com/maps/api/directions/json?origin={start}&destination={destination}&units=metric&alternatives=true&key={API_KEY}'
     api_ct = 1
     
-    possible_routes_json = requests.get(possible_routes).json()
+    routes_request = requests.get(possible_routes)
+    possible_routes_json = routes_request.json()
+    # print(str(possible_routes_json))
     routes = possible_routes_json['routes']
     alc_locs_per_route = []
-    for route in routes:
-        steps = route['legs'][0]['steps']
-        num_danger_locs = 0
-        for i in range(len(steps)-1):
-            start = steps[i]['start_location']['lat'], steps[i]['start_location']['lng']
-            end = steps[i]['end_location']['lat'], steps[i]['end_location']['lng']
-            distance = haversine_distance(start, end)
-            # print_instruction(steps[i])
-            avoid_locs = find_avoid_locs(start,end,distance)
-            api_ct += len(danger_locations)
-            danger_locs = find_danger_locs(start,end,avoid_locs)
-            # print("Dangerous locations on step "+str(i)+": "+str(danger_locs))
-            num_danger_locs += len(danger_locs)
-        alc_locs_per_route += [num_danger_locs]
 
-    best_route = -1
-    min_locs = float('inf')
-    for i in range(len(alc_locs_per_route)):
-        num_locs = alc_locs_per_route[i]
-        # print("Route "+str(i+1)+" passes "+str(num_locs)+" dangerous locations.")
-        if num_locs < min_locs: 
-            best_route = i
-            min_locs = num_locs
+    if routes_request.status_code == 200 and possible_routes_json['status'] == 'OK':
+        for route in routes:
+            steps = route['legs'][0]['steps']
+            num_danger_locs = 0
+            for i in range(len(steps)-1):
+                start = steps[i]['start_location']['lat'], steps[i]['start_location']['lng']
+                end = steps[i]['end_location']['lat'], steps[i]['end_location']['lng']
+                distance = haversine_distance(start, end)
+                # print_instruction(steps[i])
+                avoid_locs = find_avoid_locs(start,end,distance)
+                api_ct += len(danger_locations)
+                danger_locs = find_danger_locs(start,end,avoid_locs)
+                # print("Dangerous locations on step "+str(i)+": "+str(danger_locs))
+                num_danger_locs += len(danger_locs)
+            alc_locs_per_route += [num_danger_locs]
 
-    # print("Route "+str(best_route+1)+" is safest:")
-    
-    final_route_steps = routes[i]['legs'][0]['steps']
-    
-    # instructions = ''
-    # for step in final_route_steps:
-    #     # print_instruction(step)
-    #     instructions += str_instruction(step)
+        best_route = 0
+        min_locs = 0
+        if alc_locs_per_route is not []:
+            min_locs = float('inf')
+            for i in range(len(alc_locs_per_route)):
+                num_locs = alc_locs_per_route[i]
+                print("Route "+str(i+1)+" passes "+str(num_locs)+" dangerous locations.")
+                if num_locs < min_locs: 
+                    best_route = i
+                    min_locs = num_locs
 
-    ret_dict = {
-        'route_json': routes[i],
-        'danger_locs': min_locs,
-        'num_api_calls': api_ct
-    }
-    return ret_dict
+        print("Route "+str(best_route+1)+" is safest:")
+
+        ret_dict = {
+            'route_json': routes[best_route],
+            'danger_locs': min_locs,
+            'num_api_calls': api_ct
+        }
+        return ret_dict
+    else:
+        ret_dict = {
+            'route_json': 'ERROR',
+            'danger_locs': 'ERROR',
+            'num_api_calls': api_ct
+        }
+        return ret_dict
     # print("Route: "+str(route))
 
 def print_instruction(step):
