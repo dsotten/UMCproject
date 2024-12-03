@@ -20,7 +20,7 @@ def coord_to_m(lat1, long1, lat2, long2):
 
 #Looks through the bar list to see if there is a bar close to the point being looked at and adds a weight of .5. (The .5 is subject to change.)
 def calc_bar_weight(bar_coords, pot_x, pot_y, grid_size):
-    BAR_WEIGHT: Final = 30 #Has to be high for shorter distances, but might not need to be shorter for smaller distances.
+    BAR_WEIGHT: Final = 15 #Has to be high for shorter distances, but might not need to be shorter for smaller distances.
     weight = 0
     for bar in bar_coords:
         distance_x = abs(bar[0]-pot_x)
@@ -29,12 +29,12 @@ def calc_bar_weight(bar_coords, pot_x, pot_y, grid_size):
             weight += distance_x * BAR_WEIGHT
         elif distance_y < grid_size:
             weight += BAR_WEIGHT
-    print('Weight Added:' + str(weight))
+    # print('Weight Added:' + str(weight))
     return weight
 
 #For now we are only going to use bars. - Just makes things easier
 #Might have issues with bigger distances.
-def get_route(origin_x, origin_y, dest_x, dest_y):
+def get_route(origin_x, origin_y, dest_x, dest_y, avoid_place):
     API_KEY: Final = 'AIzaSyBzoCUm8NNP68qFTVdWHVlX-MfNIjXUwOE'
 
     origin_x = origin_x
@@ -53,41 +53,42 @@ def get_route(origin_x, origin_y, dest_x, dest_y):
     else:
         bigger_y= origin_y
 
+    avoid_place_lst = []
     #Formulates the url that looks for bars in the areas. Added open now.
-    place_type = 'bar'
-    coord = str(origin_x)+','+str(origin_y)
-    radius_int = coord_to_m(origin_x,origin_y,destination_x,destination_y)
-    radius = str(radius_int)
-    #Set to 25 miles or 40233.6 meters
-    print("Radius:", radius)
-    if radius_int < 40233.6:
-        grid_size = .0006 #May need to be changed
-    else:
-        if(bigger_x>bigger_y):
-            grid_size = bigger_x/20
+    for place_type in avoid_place:
+        coord = str(origin_x)+','+str(origin_y)
+        radius_int = coord_to_m(origin_x,origin_y,destination_x,destination_y)
+        radius = str(radius_int)
+        #Set to 25 miles or 40233.6 meters
+        # print("Radius:", radius)
+        if radius_int < 40233.6:
+            grid_size = .00055 #May need to be changed
         else:
-            grid_size = bigger_y/20
-    radius_url = f'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={coord}&radius={radius}&type={place_type}&opennow&key={API_KEY}'
+            if(bigger_x>bigger_y):
+                grid_size = bigger_x/20
+            else:
+                grid_size = bigger_y/20
+        radius_url = f'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location={coord}&radius={radius}&type={place_type}&opennow&key={API_KEY}'
 
-    #Makes the radius request. Gets bars in the area surrounding the origin and puts them into the bar_coords list. The radius is how far away the url looks away from the destination is.
-    bar_coords = []
-    radius_request = requests.get(radius_url)
-    if radius_request.status_code == 200:
-        places = radius_request.json()
-        if places['status'] == 'OK':
-            bars = places['results']
-            if bars:
-                for bar in bars:
-                    lat = float(bar['geometry']['location']['lat'])
-                    lng = float(bar['geometry']['location']['lng'])
-                    bar_coords.append([lat, lng])
-        elif places['status'] == 'ZERO_RESULTS':
-            print('No Bars') #Probably need to come up with situatiosn for these
+        #Makes the radius request. Gets bars in the area surrounding the origin and puts them into the bar_coords list. The radius is how far away the url looks away from the destination is.
+        coords = []
+        radius_request = requests.get(radius_url)
+        if radius_request.status_code == 200:
+            places = radius_request.json()
+            if places['status'] == 'OK':
+                bars = places['results']
+                if bars:
+                    for bar in bars:
+                        lat = float(bar['geometry']['location']['lat'])
+                        lng = float(bar['geometry']['location']['lng'])
+                        coords.append([lat, lng])
+            elif places['status'] == 'ZERO_RESULTS':
+                print('No '+str(place_type)+'s') #Probably need to come up with situatiosn for these
+            else:
+                print("Error in response: ", places['status'])
         else:
-            print("Error in response: ", places['status'])
-    else:
-        print("Request failed: ", radius_request.status_code)
-
+            print("Request failed: ", radius_request.status_code)
+        avoid_place_lst.append(coords)
 
     #Current node
     current_node_str = str(origin_x) + ',' + str(origin_y)
@@ -98,7 +99,7 @@ def get_route(origin_x, origin_y, dest_x, dest_y):
     #Keep tracks of weight - to add on the amount it currently takes to get there
     weight_graph = {current_node_str: 0}
     #Puts weights into here
-    pq = []
+    pq = PriorityQueue()
 
     check_coords = ''
 
@@ -106,7 +107,8 @@ def get_route(origin_x, origin_y, dest_x, dest_y):
     y_variant = grid_size
 
     #I think there is an issue here
-    while abs((abs(current_node[0])+ abs(current_node[1])) - (abs(destination_x)+ abs(destination_y))) > grid_size:
+    i = 0
+    while abs((abs(current_node[0])+ abs(current_node[1])) - (abs(destination_x)+ abs(destination_y))) > grid_size and i <= 50:
         #Test line
         #print(abs(abs((current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y))))
         #Gets the locations and the weights of nodes it wants to look at surrounding the current node.
@@ -131,7 +133,6 @@ def get_route(origin_x, origin_y, dest_x, dest_y):
             print(f"Error: {e}")
 
         #Potential issue - For 2 way roads, they are listed twice. Need to formulate some way to not double them, but also not skipping over roads that have the same nearest road.
-        i = 0
         #Goes through the data
         if "snappedPoints" in road_request_data:
 
@@ -141,41 +142,35 @@ def get_route(origin_x, origin_y, dest_x, dest_y):
                 longitude = snapped_point["location"]["longitude"]
                 lat_long = str(latitude)+ ','+ str(longitude)
                 #Test Line
-                print("Coords:" + lat_long)
+                # print("Coords:" + lat_long)
                 
                 #Checks to see if the road is already in the graph
                 if lat_long not in connection_graph:
                     #Adds it as a new node to the connection graph and connects it with the node that found it. Should not add to the pq again.
                     connection_graph.update({lat_long: current_node_str})
                     weight = abs(destination_x - latitude) + abs(destination_y - longitude) #Calculates the distance from the road
-                    weight_graph.update({lat_long: (weight + calc_bar_weight(bar_coords, latitude, longitude, grid_size) + (weight_graph.get(current_node_str)))})
+                    place_weight = 0
+                    for place in avoid_place_lst:
+                        place_weight += calc_bar_weight(place, latitude, longitude, grid_size)
+                    weight_graph.update({lat_long: (weight + place_weight + (weight_graph.get(current_node_str)))})
                     #Test Line
-                    print("Weight:" + str(weight))
+                    # print("Weight:" + str(weight))
                     #Puts it in the priority queue with its associated weight
-                    heapq.heappush(pq, (weight_graph.get(lat_long), lat_long))
+                    pq.put((weight_graph.get(lat_long), lat_long))
             
-            #Gets the next current_node.
-            new_current_node = heapq.heappop(pq)
-            current_node_str = new_current_node[1]
-            ll = current_node_str.split(',')
-            current_node = [float(ll[0]),float(ll[1])]
-            print("ans:" + str(abs(abs((current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y)))))
-            #Tried to skip places outside of a certain range.
-            # while abs(abs((current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y))) > grid_size*20:
-            #     print("used")
-            #     new_current_node = heapq.heappop(pq)
-            #     current_node_str = new_current_node[1]
-            #     ll = current_node_str.split(',')
-            #     current_node = [float(ll[0]),float(ll[1])]
-            #Test line
-            print("Current_Node:", current_node_str)
-            #Divides the string of the next node into 2.
-            check_coords = ''
+        #Gets the next current_node.
+        new_current_node = pq.get()
+        # print(new_current_node)
+        current_node_str = new_current_node[1]
+        ll = current_node_str.split(',')
+        current_node = [float(ll[0]),float(ll[1])]
+        # print("ans:" + str(abs(abs((current_node[0]) + abs(current_node[1])) - (abs(destination_x)+ abs(destination_y)))))
+        print("Current_Node:", current_node_str)
+        #Divides the string of the next node into 2.
+        check_coords = ''
+        i += 1
 
-
-    #Fix to ensure the number of way points does not exceed - Maybe base the division on the 50 waypoints.
-    past_current_node = current_node_str
-    past_current_node = connection_graph.get(past_current_node,'')
+    past_current_node = min(weight_graph)
     waypoints = past_current_node
     i = 0
     while past_current_node != '' and i < 50:
@@ -190,44 +185,43 @@ def get_route(origin_x, origin_y, dest_x, dest_y):
         
     route_request = requests.get(routing_url)
     route_json = route_request.json()
-    # #Test
-    # with open("sample.json", "w") as outfile:
-    #     json.dump(route_json, outfile)
 
     #Look at why it is not printing the final destination
     if route_json['status'] == 'OK':
         # Get the first route
         route = route_json['routes'][0]
+        return route
         
-        print("\nDirections:")
-        # Print out the total distance and duration
-        for leg in route['legs']:
-            print(f"Total Distance: {leg['distance']['text']}")
-            print(f"Total Duration: {leg['duration']['text']}")
+        # print("\nDirections:")
+        # # Print out the total distance and duration
+        # for leg in route['legs']:
+        #     print(f"Total Distance: {leg['distance']['text']}")
+        #     print(f"Total Duration: {leg['duration']['text']}")
         
-            # Print each step of the route
-            for step in leg['steps']:
-                instruction = step['html_instructions']  # Contains HTML instructions
-                distance = step['distance']['text']  # Step distance
-                duration = step['duration']['text']  # Step duration
+        #     # Print each step of the route
+        #     for step in leg['steps']:
+        #         instruction = step['html_instructions']  # Contains HTML instructions
+        #         distance = step['distance']['text']  # Step distance
+        #         duration = step['duration']['text']  # Step duration
 
-                # Strip HTML tags from the instruction (if needed)
-                import re
-                clean_instruction = re.sub('<.*?>', '', instruction)  # Remove HTML tags
+        #         # Strip HTML tags from the instruction (if needed)
+        #         import re
+        #         clean_instruction = re.sub('<.*?>', '', instruction)  # Remove HTML tags
 
-                # Print step details
-                print(f"- {clean_instruction} ({distance}, {duration})")
-            print("New leg")
+        #         # Print step details
+        #         print(f"- {clean_instruction} ({distance}, {duration})")
+        #     print("New leg")
     else:
         print(f"Error: {route_json['status']}")
         
+if __name__ == '__main__':
+    #DownTown Art Museum - 37.2686°N 76.7048°W
+    #Zable Stadium - 37.2730556 ″N -76.7133333″W
+    #Current Example - Zable Stadium to Jay's Apartment
+    origin_x = 37.2686
+    origin_y = -76.7133333 #Zable Stadium
+    destination_x = 37.27732
+    destination_y = -76.70697 #Jay's Apartment
+    avoid_place = ['bar']
 
-#DownTown Art Museum - 37.2686°N 76.7048°W
-#Zable Stadium - 37.2730556 ″N -76.7133333″W
-#Current Example - Zable Stadium to Jay's Apartment
-origin_x = 37.2730556
-origin_y = -76.713333 #Zable Stadium
-destination_x = 37.27732
-destination_y = -76.70697 #Jay's Apartment
-
-get_route(origin_x, origin_y, destination_x, destination_y)
+    get_route(origin_x, origin_y, destination_x, destination_y, avoid_place)
