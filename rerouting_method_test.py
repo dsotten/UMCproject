@@ -7,7 +7,7 @@ import pandas as pd
 import DJ as DJ
 import rerouting as AR
 
-API_KEY = 'AIzaSyBzoCUm8NNP68qFTVdWHVlX-MfNIjXUwOE'
+API_KEY = 'AIzaSyCWNkEIFpv-qXrdqTZlHGJrKFP9tm9eulU'
 
 # trips = [
 #     [('40.748817,-73.985428'),('40.785091,-73.968285')],
