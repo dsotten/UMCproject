@@ -35,7 +35,7 @@ def calc_bar_weight(bar_coords, pot_x, pot_y, grid_size):
 #For now we are only going to use bars. - Just makes things easier
 #Might have issues with bigger distances.
 def get_route(origin_x, origin_y, dest_x, dest_y, avoid_place,opennow=True):
-    API_KEY: Final = 'AIzaSyBzoCUm8NNP68qFTVdWHVlX-MfNIjXUwOE'
+    API_KEY: Final = 'AIzaSyCWNkEIFpv-qXrdqTZlHGJrKFP9tm9eulU'
 
     origin_x = origin_x
     origin_y = origin_y
