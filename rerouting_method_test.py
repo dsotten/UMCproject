@@ -7,13 +7,16 @@ import pandas as pd
 import DJ as DJ
 import rerouting as AR
 
-API_KEY = 'AIzaSyCWNkEIFpv-qXrdqTZlHGJrKFP9tm9eulU'
-
-# trips = [
-#     [('40.748817,-73.985428'),('40.785091,-73.968285')],
-#     [('37.2731,-76.7133'),('37.27732,-76.70697')]
-# ]
+API_KEY = 'AIzaSyDUWGT6bmVDHC3vST7oSW9eK2vhzvWlI8M'
 danger_locations = ['bar','liquor_store','casino','night_club']
+high_risk = False
+opennow = False
+max_calls = 50
+min_trip_dist = 3 #KM
+max_trip_dist = 10
+trip_ct = 10
+city_radius = 50
+min_safe_dist = 50 #meters
 
 def reroute_function_testing(trips):
 
@@ -50,7 +53,6 @@ def reroute_function_testing(trips):
 
     #repeat all tests for high_risk = True
 
-
 #Calls Alternative Routes and returns
 def call_ar(origin,destination,high_risk=False):
 
@@ -79,11 +81,12 @@ def call_ar(origin,destination,high_risk=False):
     return ret_dict
 
 def call_dj(origin,destination,high_risk=False):
-    origin_x, origin_y = origin
-    destination_x, destination_y = destination
+    # origin_x, origin_y = origin
+    # destination_x, destination_y = destination
 
     start_time = datetime.datetime.now()
-    dj_route = DJ.get_route(origin_x, origin_y, destination_x, destination_y, danger_locations, opennow=False)
+    # dj_route = DJ.get_route(origin_x, origin_y, destination_x, destination_y, danger_locations, opennow=False)
+    dj_route = DJ.handler(origin, destination, key=API_KEY, high_risk=high_risk)
     end_time = datetime.datetime.now()
     time_elapsed = end_time - start_time
     time_elapsed = time_elapsed.total_seconds()
@@ -120,7 +123,7 @@ def get_num_danger_locs(file):
                 # print_instruction(steps[i])
                 avoid_locs = AR.find_avoid_locs(start,end,distance)
                 # api_ct += len(danger_locations)
-                danger_locs = AR.find_danger_locs(start,end,avoid_locs)
+                danger_locs = AR.find_danger_locs(start,end,avoid_locs,min_dist=min_safe_dist)
                 # print("Dangerous locations on step "+str(i)+": "+str(danger_locs))
                 num_danger_locs += len(danger_locs)
         return num_danger_locs
@@ -153,7 +156,7 @@ def extract_travel_info(file):
         'time':travel_time
     }
 
-def generate_trips(num_of_trips, radius_km, min_distance_km=1, max_distance_km=5):
+def generate_trips(num_of_trips, radius_km, min_distance_km=min_trip_dist, max_distance_km=max_trip_dist):
     
     def random_point_in_radius(center_lat, center_lon, radius_km):
         """
@@ -196,16 +199,16 @@ def generate_trips(num_of_trips, radius_km, min_distance_km=1, max_distance_km=5
         return math.degrees(lat2), math.degrees(lon2)
 
     cities = [
-        # (35.6764, 139.6500), #Tokyo
-        # (28.7041, 77.1025), #Delhi
-        # (31.2304, 121.4737), #Shanghai
-        # (-23.5558, -46.6396), #Sao Paulo
-        # (19.4326, -99.1332), #Mexico City
-        # (30.0444, 31.2357), #Cairo
+        (35.6764, 139.6500), #Tokyo
+        (28.7041, 77.1025), #Delhi
+        (31.2304, 121.4737), #Shanghai
+        (-23.5558, -46.6396), #Sao Paulo
+        (19.4326, -99.1332), #Mexico City
+        (30.0444, 31.2357), #Cairo
         (40.7128, -74.0060), #New York City
-        # (-34.6037, -58.3816), #Buenos Aires
-        # (41.0082, 28.9784), #Istanbul
-        # (14.5995, 120.9842) #Manila
+        (-34.6037, -58.3816), #Buenos Aires
+        (41.0082, 28.9784), #Istanbul
+        (14.5995, 120.9842) #Manila
     ]
 
     num_of_trips //= len(cities)
@@ -229,6 +232,6 @@ def generate_trips(num_of_trips, radius_km, min_distance_km=1, max_distance_km=5
 
 if __name__ == "__main__":
     print('Start')
-    new_trips = generate_trips(10, 50)
+    new_trips = generate_trips(trip_ct, city_radius)
     print(str(new_trips))
     reroute_function_testing(new_trips)

@@ -2,7 +2,7 @@ import requests
 import heapq
 import math
 
-API_KEY = 'AIzaSyBzoCUm8NNP68qFTVdWHVlX-MfNIjXUwOE'
+API_KEY = ''
 min_safe_dist = 50
 danger_locations = ['bar','liquor_store','casino','night_club']
 
@@ -110,10 +110,10 @@ def find_avoid_locs(start, end, distance=None, opennow=False):
 
     return nearby_avoid_locs
 
-def find_danger_locs(start, end, avoid_locs):
+def find_danger_locs(start, end, avoid_locs, min_dist=min_safe_dist):
     danger_locs = []
     for location in avoid_locs:
-        if is_point_near_route_segment(location, start, end):
+        if is_point_near_route_segment(location, start, end, max_distance=min_dist):
             danger_locs += [location]
     return danger_locs
 
@@ -128,6 +128,7 @@ def find_best_alt_route(start, destination):
     routes = possible_routes_json['routes']
     alc_locs_per_route = []
 
+    #Iterate through routes and count up the number of passed locations
     if routes_request.status_code == 200 and possible_routes_json['status'] == 'OK':
         for route in routes:
             steps = route['legs'][0]['steps']
@@ -136,6 +137,7 @@ def find_best_alt_route(start, destination):
                 start = steps[i]['start_location']['lat'], steps[i]['start_location']['lng']
                 end = steps[i]['end_location']['lat'], steps[i]['end_location']['lng']
                 distance = haversine_distance(start, end)
+                true_distance = steps[i]['distance']['text']  # Step distance
                 # print_instruction(steps[i])
                 avoid_locs = find_avoid_locs(start,end,distance)
                 api_ct += len(danger_locations)
@@ -157,6 +159,7 @@ def find_best_alt_route(start, destination):
                     min_locs = num_locs
                 if num_locs > max_locs:
                     max_locs = num_locs
+                
 
         print("Route "+str(best_route+1)+" is safest:")
 
@@ -171,6 +174,7 @@ def find_best_alt_route(start, destination):
         ret_dict = {
             'route_json': 'ERROR',
             'danger_locs': 'ERROR',
+            'max_danger_locs': 'ERROR',
             'num_api_calls': api_ct
         }
         return ret_dict
@@ -200,10 +204,12 @@ def str_instruction(step):
     # Print step details
     return f"- {clean_instruction} ({distance}, {duration})"
 
-def handler(origin, destination, key, high_risk=False):
+def handler(origin, destination, key, min_safety = 50, high_risk=False):
     global API_KEY
     global danger_locations
+    global min_safe_dist
     API_KEY = key
+    min_safe_dist = min_safety
     place_types2 = ['convenience_store','drugstore','gas_station','supermarket']
     if (high_risk): danger_locations += place_types2
 

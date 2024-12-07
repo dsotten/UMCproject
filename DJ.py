@@ -33,8 +33,8 @@ def calc_weight(coords, long, lat, grid_size):
 #The main program that gets the alcohol avoidance route.
 #Input(s):
 #avoid_place - The list of the type of establishments your route is to avoid.
-def get_route(origin_long, origin_lat, dest_long, dest_lat, avoid_place, opennow=True):
-    API_KEY: Final = 'AIzaSyDUWGT6bmVDHC3vST7oSW9eK2vhzvWlI8M' 
+def get_route(origin_long, origin_lat, dest_long, dest_lat, avoid_place, API_KEY, max_api_calls=50, opennow=True):
+    # API_KEY: Final = 'AIzaSyDUWGT6bmVDHC3vST7oSW9eK2vhzvWlI8M' 
 
     #Defines the distance away it will look from a point.
     grid_size = .0001 #Dynamic grid size por favor
@@ -97,7 +97,7 @@ def get_route(origin_long, origin_lat, dest_long, dest_lat, avoid_place, opennow
 
     if len(avoid_place_lst) > 0:
         #Makes sure the longitude and latitude are not within a gride size and checks to make sure the api is not called more than 50 times.
-        while abs(current_node[0] -  dest_long) > grid_size and abs(current_node[1] - dest_lat) > grid_size and api_check <= 50:
+        while abs(current_node[0] -  dest_long) > grid_size and abs(current_node[1] - dest_lat) > grid_size and api_check <= max_api_calls:
             #Gets the locations and the weights of nodes it wants to look at surrounding the current node. Format:
             # ***
             # *X*
@@ -198,6 +198,20 @@ def get_route(origin_long, origin_lat, dest_long, dest_lat, avoid_place, opennow
             'route_json': None,
             'num_api_calls': api_check
         }
+
+def handler(origin, destination, key, max_api_calls = 50, high_risk=False, opennow=False):
+    ox, oy = origin
+    dx, dy = destination
+
+    danger_locations = ['bar','liquor_store','casino','night_club']
+    place_types2 = ['convenience_store','drugstore','gas_station','supermarket']
+    if (high_risk): danger_locations += place_types2
+
+    route_call = get_route(ox, oy, dx, dy, danger_locations, max_api_calls=max_api_calls, API_KEY=key, opennow=opennow)
+
+    return route_call
+
+
 
 #Some example test code
 if __name__ == '__main__':
